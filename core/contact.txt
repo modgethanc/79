@@ -1,0 +1,4 @@
+<div class="contact"><h3>contact header</h3>
+<p>contact filler here</p>
+</div>
+<br clear="all">

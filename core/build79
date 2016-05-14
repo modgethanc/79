@@ -1,0 +1,299 @@
+#!/usr/bin/perl -w
+use strict;
+use File::stat;
+use Date::Format;
+use Time::localtime;
+
+my $hotlink = "http://HOTLINK URL HERE";
+
+open IN, 'header.txt';
+my @header = <IN>;
+close IN;
+
+open IN, 'footer.txt';
+my @footer = <IN>;
+close IN;
+
+open IN, 'last';
+chomp(my $lastupdate = <IN>);
+close IN;
+
+my $i = 0;
+my @files;
+my @posts;
+
+sub fileImport {
+  my @files = glob('content/*.*');
+  my %fileDates;
+  foreach (@files) {
+    $fileDates{$_} = stat($_)->mtime;
+  }
+
+  return sort {$fileDates{$a} <=> $fileDates{$b}} keys %fileDates;
+}
+
+sub processFile {
+  my @processed;
+  my @filesplit = split('\.', $_);
+
+  if ($filesplit[-1] =~ /TXT/) {
+    open IN, $_;
+    @processed = <IN>;
+    close IN;
+    foreach (@processed) {
+      if ($_ =~ /^\n/) {
+        $_ = "</p>\n<p>";
+      } else {
+        my @line = split("", $_);
+        my $newline;
+        my $replacing = 0;
+        for (my $x=0;$x<=$#line;$x++) {
+          if (($line[$x] =~ / /) && ($line[$x+1] =~ / /)) {
+            $replacing = 1;
+          } else { $replacing = 0; }
+
+          if (($replacing) && ($line[$x] =~ / /)) {
+            $newline .= "&nbsp;";
+          } else { $newline .= $line[$x]; }
+        }
+        chomp($_ = $newline);
+        $_ .= "<br />";
+      }
+
+      $_ .= "\n";
+    }
+  } elsif ($filesplit[-1] =~ /txt/) {
+    open IN, $_;
+    @processed = <IN>;
+    close IN;
+    foreach (@processed) {
+      if ($_ =~ /^\n/) {
+        $_ = "</p>\n<p>";
+      }
+    }
+  } else {
+    push(@processed, "<img src=\"$hotlink/$_\">\n");
+  }
+
+  return @processed;
+}
+
+sub padFilenum {
+  my $filenum = $_;
+
+  if ($_ < 100 ) { $filenum = "0".$filenum; }
+  if ($_ < 10 ) { $filenum = "0".$filenum; }
+
+  return $filenum;
+}
+
+sub makePostList {
+  my @postList = ("<div class=\"sidebar\"><ul><li>");
+  my $navnum = 0;
+
+  for (my $x=0;$x<=$#files;$x++) {
+    my $navnum = $x;
+
+    if ($x < 100 ) { $navnum = "0".$navnum; }
+    if ($x < 10 ) { $navnum = "0".$navnum; }
+    if ($x == $#files/2) {
+      push(@postList, "</li>\n<li>");
+    }
+
+    if ($x == $lastupdate) {
+      push(@postList, "<div class=\"new\">\n<font size=\".4em\"><i>new</i></font><br />\n");
+    }
+    push(@postList, "<a href=\"$navnum.html\">$navnum</a><br />\n");
+  }
+
+  push(@postList, "</div>\n</li></ul>\n</div>\n");
+
+  return @postList;
+}
+
+sub makeHtml {
+}
+
+sub makeFile {
+  my $i = 0;
+
+  foreach(@files) {
+    my $filenum = $i;
+    if ($i < 100 ) { $filenum = "0".$filenum; }
+    if ($i < 10 ) { $filenum = "0".$filenum; }
+
+    my @content = "<div class=\"post\"><p>";
+    push(@content, &processFile($_));
+    push(@content, "</p>\n");
+    my @postList = ("<div class=\"sidebar\"><ul><li>");
+    for (my $x=0;$x<=$#files;$x++) {
+      my $navnum = $x;
+
+      if ($x < 100 ) { $navnum = "0".$navnum; }
+      if ($x < 10 ) { $navnum = "0".$navnum; }
+
+      if ($x == int($#files/2)+2) {
+        push(@postList, "</li>\n<li>");
+      }
+
+      if ($x == $lastupdate) {
+        push(@postList, "<div class=\"new\">\n<small><i>new</i></small><br />\n");
+      }
+      push(@postList, "<a href=\"$navnum.html\"");
+      if ($x == $i) {
+        push(@postList, " id=\"here\"");
+      }
+      push(@postList, ">$navnum</a><br />\n");
+    }
+
+    push(@postList, "</div>\n</li></ul>\n</div>\n");
+
+    my @meta;
+
+    push(@meta, "<div class=\"meta\"><p><a href=\"$filenum.html\">#$filenum --- Posted on ");
+    push(@meta, time2str("%a, %d %b %Y %X", stat($_)->mtime));
+    push(@meta, "</a></p></div>\n");
+    push(@meta, "</div>\n");
+
+    my @nav = "<div class=\"nav\"><p>\n";
+    if ($i > 0) {
+      my $prev = $i - 1;
+      #$prev = &padFilenum($prev);
+      if ($prev < 100 ) { $prev= "0".$prev; }
+      if ($prev < 10 ) { $prev= "0".$prev; }
+      push(@nav,"<a href=\"$prev.html\">older</a> ");
+    }
+    if ($i < scalar(@files)-1) {
+      my $next = $i + 1;
+      if ($next < 100 ) { $next= "0".$next; }
+      if ($next < 10 ) { $next= "0".$next; }
+      push(@nav,"<a href=\"$next.html\">newer</a>");
+    }
+    push(@nav,"</p>\n<p>");
+    if ($i > 0) {
+      push(@nav,"<a href=\"000.html\">oldest</a> ");
+    }
+    if ($i < scalar(@files)-1) {
+      push(@nav,"<a href=\"index.html\">newest</a>");
+    }
+
+    my $curr = $lastupdate;
+      if ($curr< 100 ) { $curr= "0".$curr; }
+      if ($curr< 10 ) { $curr= "0".$curr; }
+
+    push(@nav,"</p>\n<p><a href=\"$curr.html\">top of last update</a>");
+
+    push(@nav,"</p></div>\n<br clear=\"all\" />\n");
+
+    ### printing
+
+    open OUT, ">", "$filenum.html";
+    select OUT;
+
+    print @header;
+    print @postList;
+    print @content;
+    print @meta;
+    print @nav;
+    print @footer;
+    close OUT;
+
+    if ($i == scalar(@files)-1) {
+      open OUT, ">", "index.html";
+      select OUT;
+
+      print @header;
+      print @postList;
+      print @content;
+      print @meta;
+      print @nav;
+      print @footer;
+
+      close OUT;
+    }
+
+    $i++;
+  }
+}
+
+sub makeContact{
+  open IN, "contact.txt";;
+  my @content = <IN>;
+  close IN;
+
+  open OUT, ">", "contact.html";
+  select OUT;
+
+  print @header;
+  print @posts;
+  print @content;
+  print @footer;
+  close OUT;
+}
+
+sub makeIndex{
+    my $i = $#files;
+    my $filenum = $i;
+    my $index = $files[$i-1];
+    if ($i < 100 ) { $filenum = "0".$filenum; }
+    if ($i < 10 ) { $filenum = "0".$filenum; }
+
+    my @content = &processFile($index);
+
+    my @postList = ("<div class=\"sidebar\">");
+    for (my $x=0;$x<=$#files;$x++) {
+      my $navnum = $x;
+
+      if ($x < 100 ) { $navnum = "0".$navnum; }
+      if ($x < 10 ) { $navnum = "0".$navnum; }
+
+      if ($x > $lastupdate) {
+        push(@postList, "<div class=\"new\">\n<small><i>new</i></small><br />\n");
+      }
+      push(@postList, "<a href=\"$navnum.html\"");
+      if ($x == $i) {
+        push(@postList, " id=\"here\"");
+      }
+      push(@postList, ">$navnum</a><br />\n");
+    }
+
+    push(@postList, "</div></div>\n");
+    ### printing
+
+    open OUT, ">", "index.html";
+    select OUT;
+
+    print @header;
+    print @postList;
+    #print @posts;
+
+    print "<div class=\"post\"><p>";
+    print @content;
+    print "</p>\n";
+
+    print "<div class=\"meta\"><p><a href=\"$filenum.html\">#$filenum --- Posted on ";
+    print time2str("%a, %d %b %Y %X", stat($_)->mtime);
+    print "</a></p></div>\n";
+
+    print "</div>\n";
+
+    print "<div class=\"nav\"><p>\n";
+    my $prev = $i - 1;
+    if ($i < 100 ) { $prev= "0".$prev; }
+    if ($i < 10 ) { $prev= "0".$prev; }
+    print "<a href=\"$prev.html\">older</a> ";
+    print "</p>\n<p>";
+    print "<a href=\"000.html\">oldest</a> ";
+
+    print "</p></div>\n<br clear=\"all\">\n";
+    print @footer;
+    close OUT;
+
+}
+
+####
+@files = &fileImport;
+@posts = &makePostList;
+&makeFile;
+&makeContact;
+#&makeIndex;
