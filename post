@@ -1,9 +1,0 @@
-#!/bin/bash
-
-scp new/* HOTLINK.URL.HERE/content
-cp -a new/* content/
-rm new/*
-
-./build79
-
-scp *.html USERNAME@MAIN.HOST:
